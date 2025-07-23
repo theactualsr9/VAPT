@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc.Versioning;
 using Microsoft.IdentityModel.Tokens;
 using SecureApiVAPT.Services;
 using AspNetCoreRateLimit;
+using SecureApiVAPT.Data;
+using Microsoft.EntityFrameworkCore;
 using System.Text;
 
 namespace SecureApiVAPT.Extensions;
@@ -67,6 +69,10 @@ public static class ServiceCollectionExtensions
         // Register Application Services
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IProductService, ProductService>();
+
+        // Add Entity Framework
+        services.AddDbContext<ApplicationDbContext>(options =>
+            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
         return services;
     }

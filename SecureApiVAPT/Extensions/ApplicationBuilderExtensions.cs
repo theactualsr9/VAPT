@@ -13,6 +13,15 @@ public static class ApplicationBuilderExtensions
         // Security Headers Middleware
         app.UseMiddleware<SecurityHeadersMiddleware>();
 
+        // Request Validation Middleware
+        app.UseMiddleware<RequestValidationMiddleware>();
+
+        // Anti-XSS Middleware
+        app.UseMiddleware<AntiXssMiddleware>();
+
+        // SQL Injection Prevention Middleware
+        app.UseMiddleware<SqlInjectionMiddleware>();
+
         // HTTPS Redirection
         app.UseHttpsRedirection();
 
