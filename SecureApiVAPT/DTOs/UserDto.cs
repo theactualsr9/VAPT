@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using SecureApiVAPT.Attributes;
 
 namespace SecureApiVAPT.DTOs;
 
@@ -6,10 +7,12 @@ public class UserDto
 {
     [Required]
     [StringLength(100, MinimumLength = 3)]
+    [NoXss]
     public string Username { get; set; } = string.Empty;
 
     [Required]
     [EmailAddress]
+    [NoXss]
     public string Email { get; set; } = string.Empty;
 
     [Required]
@@ -25,6 +28,7 @@ public class UserDto
 public class LoginDto
 {
     [Required]
+    [NoXss]
     public string Username { get; set; } = string.Empty;
 
     [Required]
@@ -35,6 +39,7 @@ public class ProductDto
 {
     [Required]
     [StringLength(200)]
+    [NoXss]
     public string Name { get; set; } = string.Empty;
 
     [Required]
@@ -42,6 +47,7 @@ public class ProductDto
     public decimal Price { get; set; }
 
     [StringLength(1000)]
+    [NoXss]
     public string Description { get; set; } = string.Empty;
 
     [Range(0, int.MaxValue)]

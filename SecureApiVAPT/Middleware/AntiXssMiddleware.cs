@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Net;
 
 namespace SecureApiVAPT.Middleware;
 
@@ -51,6 +52,10 @@ public class AntiXssMiddleware
     {
         if (string.IsNullOrEmpty(input)) return false;
 
+        // Check both original and URL-decoded input
+        var decodedInput = System.Net.WebUtility.UrlDecode(input);
+        var inputs = new[] { input, decodedInput };
+
         var xssPatterns = new[]
         {
             @"<script[^>]*>.*?</script>",
@@ -61,12 +66,15 @@ public class AntiXssMiddleware
             @"<embed[^>]*>",
             @"<link[^>]*>",
             @"<meta[^>]*>",
+            @"<img[^>]*onerror[^>]*>",
             @"vbscript:",
             @"data:",
             @"&#x?[0-9a-f]+;",
-            @"&#[0-9]+;"
+            @"&#[0-9]+;",
+            @"%3C.*?%3E",  // URL encoded < and >
+            @"&lt;.*?&gt;", // HTML encoded < and >
         };
 
-        return xssPatterns.Any(pattern => Regex.IsMatch(input, pattern, RegexOptions.IgnoreCase));
+        return inputs.Any(inp => xssPatterns.Any(pattern => Regex.IsMatch(inp, pattern, RegexOptions.IgnoreCase)));
     }
 } 

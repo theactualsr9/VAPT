@@ -72,7 +72,7 @@ public static class ServiceCollectionExtensions
 
         // Add Entity Framework
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
 
         return services;
     }

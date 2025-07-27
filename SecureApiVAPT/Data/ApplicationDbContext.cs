@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using System.Data;
 
 namespace SecureApiVAPT.Data;
@@ -13,44 +13,50 @@ public class ApplicationDbContext : DbContext
         _connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string not found");
     }
 
+    // DbSet properties for Entity Framework
+    public DbSet<Models.User> Users { get; set; }
+    public DbSet<Models.Product> Products { get; set; }
+    public DbSet<Models.FileUpload> FileUploads { get; set; }
+    public DbSet<Models.AuditLog> AuditLogs { get; set; }
+
     // Stored Procedure Execution Methods
-    public async Task<SqlDataReader> ExecuteStoredProcedureAsync(string procedureName, params SqlParameter[] parameters)
+    public async Task<NpgsqlDataReader> ExecuteStoredProcedureAsync(string procedureName, params NpgsqlParameter[] parameters)
     {
-        var connection = new SqlConnection(_connectionString);
+        var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
-        var command = new SqlCommand($"EXEC {procedureName}", connection);
+        var command = new NpgsqlCommand($"CALL {procedureName}({string.Join(",", parameters.Select(p => p.ParameterName))})", connection);
         command.Parameters.AddRange(parameters);
         
         return await command.ExecuteReaderAsync(CommandBehavior.CloseConnection);
     }
 
-    public async Task<int> ExecuteStoredProcedureNonQueryAsync(string procedureName, params SqlParameter[] parameters)
+    public async Task<int> ExecuteStoredProcedureNonQueryAsync(string procedureName, params NpgsqlParameter[] parameters)
     {
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
-        using var command = new SqlCommand($"EXEC {procedureName}", connection);
+        using var command = new NpgsqlCommand($"CALL {procedureName}({string.Join(",", parameters.Select(p => p.ParameterName))})", connection);
         command.Parameters.AddRange(parameters);
         
         return await command.ExecuteNonQueryAsync();
     }
 
-    public async Task<object> ExecuteStoredProcedureScalarAsync(string procedureName, params SqlParameter[] parameters)
+    public async Task<object?> ExecuteStoredProcedureScalarAsync(string procedureName, params NpgsqlParameter[] parameters)
     {
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
-        using var command = new SqlCommand($"EXEC {procedureName}", connection);
+        using var command = new NpgsqlCommand($"SELECT {procedureName}({string.Join(",", parameters.Select(p => p.ParameterName))})", connection);
         command.Parameters.AddRange(parameters);
         
         return await command.ExecuteScalarAsync();
     }
 
     // Helper methods for common operations
-    public SqlParameter CreateParameter(string name, object value)
+    public NpgsqlParameter CreateParameter(string name, object value)
     {
-        return new SqlParameter(name, value ?? DBNull.Value);
+        return new NpgsqlParameter(name, value ?? DBNull.Value);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -108,8 +114,8 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.Action).HasMaxLength(50).IsRequired();
             entity.Property(e => e.EntityName).HasMaxLength(100).IsRequired();
             entity.Property(e => e.EntityId).HasMaxLength(50);
-            entity.Property(e => e.OldValues).HasColumnType("nvarchar(max)");
-            entity.Property(e => e.NewValues).HasColumnType("nvarchar(max)");
+            entity.Property(e => e.OldValues).HasColumnType("text");
+            entity.Property(e => e.NewValues).HasColumnType("text");
             entity.Property(e => e.IpAddress).HasMaxLength(45);
             entity.Property(e => e.UserAgent).HasMaxLength(500);
             entity.Property(e => e.Timestamp).IsRequired();

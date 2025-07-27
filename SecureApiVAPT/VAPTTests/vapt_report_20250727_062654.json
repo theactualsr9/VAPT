@@ -1,0 +1,11 @@
+{
+  "Timestamp": "2025-07-27T06:26:54.163419Z",
+  "TargetUrl": "http://localhost:5000",
+  "TestResults": [],
+  "Summary": {
+    "TotalTests": 0,
+    "PassedTests": 0,
+    "FailedTests": 0,
+    "WarningTests": 0
+  }
+}

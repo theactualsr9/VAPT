@@ -1,4 +1,5 @@
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.EntityFrameworkCore;
 using SecureApiVAPT.DTOs;
 using SecureApiVAPT.Models;
 using System.IdentityModel.Tokens.Jwt;
@@ -6,7 +7,6 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using SecureApiVAPT.Data;
-using Microsoft.Data.SqlClient;
 
 namespace SecureApiVAPT.Services;
 
@@ -25,50 +25,22 @@ public class UserService : IUserService
 
     public async Task<User?> GetUserByIdAsync(int id)
     {
-        using var reader = await _context.ExecuteStoredProcedureAsync("sp_GetUserById", 
-            _context.CreateParameter("@UserId", id));
-        
-        if (await reader.ReadAsync())
-        {
-            return MapUserFromReader(reader);
-        }
-        return null;
+        return await _context.Users.FirstOrDefaultAsync(u => u.Id == id && u.IsActive);
     }
 
     public async Task<User?> GetUserByUsernameAsync(string username)
     {
-        using var reader = await _context.ExecuteStoredProcedureAsync("sp_GetUserByUsername", 
-            _context.CreateParameter("@Username", username));
-        
-        if (await reader.ReadAsync())
-        {
-            return MapUserFromReader(reader);
-        }
-        return null;
+        return await _context.Users.FirstOrDefaultAsync(u => u.Username == username && u.IsActive);
     }
 
     public async Task<User?> GetUserByEmailAsync(string email)
     {
-        using var reader = await _context.ExecuteStoredProcedureAsync("sp_GetUserByEmail", 
-            _context.CreateParameter("@Email", email));
-        
-        if (await reader.ReadAsync())
-        {
-            return MapUserFromReader(reader);
-        }
-        return null;
+        return await _context.Users.FirstOrDefaultAsync(u => u.Email == email && u.IsActive);
     }
 
     public async Task<IEnumerable<User>> GetAllUsersAsync()
     {
-        using var reader = await _context.ExecuteStoredProcedureAsync("sp_GetAllUsers");
-        
-        var users = new List<User>();
-        while (await reader.ReadAsync())
-        {
-            users.Add(MapUserFromReader(reader));
-        }
-        return users;
+        return await _context.Users.Where(u => u.IsActive).ToListAsync();
     }
 
     public async Task<User> CreateUserAsync(UserDto userDto)
@@ -91,20 +63,13 @@ public class UserService : IUserService
             Email = userDto.Email,
             PasswordHash = HashPassword(userDto.Password),
             Age = userDto.Age,
+            CreatedAt = DateTime.UtcNow,
+            IsActive = true,
             Roles = new List<string> { "User" }
         };
 
-        var result = await _context.ExecuteStoredProcedureScalarAsync("sp_CreateUser",
-            _context.CreateParameter("@Username", user.Username),
-            _context.CreateParameter("@Email", user.Email),
-            _context.CreateParameter("@PasswordHash", user.PasswordHash),
-            _context.CreateParameter("@Age", user.Age),
-            _context.CreateParameter("@Roles", string.Join(",", user.Roles)));
-
-        if (result != null)
-        {
-            user.Id = Convert.ToInt32(result);
-        }
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
 
         _logger.LogInformation("User created: {Username}", user.Username);
         return user;
@@ -118,12 +83,10 @@ public class UserService : IUserService
         user.Username = userDto.Username;
         user.Email = userDto.Email;
         user.Age = userDto.Age;
+        user.UpdatedAt = DateTime.UtcNow;
 
-        await _context.ExecuteStoredProcedureNonQueryAsync("sp_UpdateUser",
-            _context.CreateParameter("@UserId", user.Id),
-            _context.CreateParameter("@Username", user.Username),
-            _context.CreateParameter("@Email", user.Email),
-            _context.CreateParameter("@Age", user.Age));
+        _context.Users.Update(user);
+        await _context.SaveChangesAsync();
 
         _logger.LogInformation("User updated: {Username}", user.Username);
         return true;
@@ -134,8 +97,11 @@ public class UserService : IUserService
         var user = await GetUserByIdAsync(id);
         if (user == null) return false;
 
-        await _context.ExecuteStoredProcedureNonQueryAsync("sp_DeleteUser",
-            _context.CreateParameter("@UserId", id));
+        user.IsActive = false;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        _context.Users.Update(user);
+        await _context.SaveChangesAsync();
 
         _logger.LogInformation("User deactivated: {Username}", user.Username);
         return true;
@@ -151,8 +117,9 @@ public class UserService : IUserService
 
         if (isValid)
         {
-            await _context.ExecuteStoredProcedureNonQueryAsync("sp_UpdateLastLogin",
-                _context.CreateParameter("@UserId", user.Id));
+            user.LastLoginAt = DateTime.UtcNow;
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync();
 
             _logger.LogInformation("User logged in: {Username}", username);
         }
@@ -202,29 +169,14 @@ public class UserService : IUserService
         var currentHash = HashPassword(currentPassword);
         if (user.PasswordHash != currentHash) return false;
 
-        var newHash = HashPassword(newPassword);
-        await _context.ExecuteStoredProcedureNonQueryAsync("sp_ChangePassword",
-            _context.CreateParameter("@UserId", userId),
-            _context.CreateParameter("@NewPasswordHash", newHash));
+        user.PasswordHash = HashPassword(newPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+        
+        _context.Users.Update(user);
+        await _context.SaveChangesAsync();
 
         _logger.LogInformation("Password changed for user: {Username}", user.Username);
         return true;
-    }
-
-    private static User MapUserFromReader(SqlDataReader reader)
-    {
-        return new User
-        {
-            Id = reader.GetInt32("Id"),
-            Username = reader.GetString("Username"),
-            Email = reader.GetString("Email"),
-            PasswordHash = reader.GetString("PasswordHash"),
-            Age = reader.GetInt32("Age"),
-            CreatedAt = reader.GetDateTime("CreatedAt"),
-            LastLoginAt = reader.IsDBNull("LastLoginAt") ? null : reader.GetDateTime("LastLoginAt"),
-            IsActive = reader.GetBoolean("IsActive"),
-            Roles = reader.GetString("Roles").Split(',').ToList()
-        };
     }
 
     private static string HashPassword(string password)

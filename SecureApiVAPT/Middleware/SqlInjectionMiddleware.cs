@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Net;
 
 namespace SecureApiVAPT.Middleware;
 
@@ -51,6 +52,10 @@ public class SqlInjectionMiddleware
     {
         if (string.IsNullOrEmpty(input)) return false;
 
+        // Check both original and URL-decoded input
+        var decodedInput = System.Net.WebUtility.UrlDecode(input);
+        var inputs = new[] { input, decodedInput };
+
         var sqlPatterns = new[]
         {
             @"(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|OR|AND)\b)",
@@ -63,9 +68,18 @@ public class SqlInjectionMiddleware
             @"(\b(HAVING|GROUP BY|ORDER BY)\b)",
             @"(\b(UNION ALL|UNION SELECT)\b)",
             @"(\b(OR 1=1|OR '1'='1'|OR ""1""=""1"")\b)",
-            @"(\b(AND 1=1|AND '1'='1'|AND ""1""=""1"")\b)"
+            @"(\b(AND 1=1|AND '1'='1'|AND ""1""=""1"")\b)",
+            @"('.*?OR.*?'.*?=.*?')",
+            @"('.*?AND.*?'.*?=.*?')",
+            @"(\bOR\s+\d+\s*=\s*\d+\b)",
+            @"(\bAND\s+\d+\s*=\s*\d+\b)",
+            @"('.*?UNION.*?SELECT)",
+            @"('.*?DROP.*?TABLE)",
+            @"('.*?INSERT.*?INTO)",
+            @"('.*?UPDATE.*?SET)",
+            @"('.*?DELETE.*?FROM)"
         };
 
-        return sqlPatterns.Any(pattern => Regex.IsMatch(input, pattern, RegexOptions.IgnoreCase));
+        return inputs.Any(inp => sqlPatterns.Any(pattern => Regex.IsMatch(inp, pattern, RegexOptions.IgnoreCase)));
     }
 } 
